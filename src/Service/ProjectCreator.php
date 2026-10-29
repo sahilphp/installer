@@ -18,15 +18,18 @@ class ProjectCreator
     private readonly Filesystem $filesystem;
     private readonly ProjectNameValidator $nameValidator;
     private readonly NodeRunner $nodeRunner;
+    private readonly UiConfigGenerator $uiConfig;
 
     public function __construct(
         ?Filesystem $filesystem = null,
         ?ProjectNameValidator $nameValidator = null,
-        ?NodeRunner $nodeRunner = null
+        ?NodeRunner $nodeRunner = null,
+        ?UiConfigGenerator $uiConfig = null
     ) {
         $this->filesystem = $filesystem ?? new Filesystem();
         $this->nameValidator = $nameValidator ?? new ProjectNameValidator();
         $this->nodeRunner = $nodeRunner ?? new NodeRunner();
+        $this->uiConfig = $uiConfig ?? new UiConfigGenerator();
     }
 
     /**
@@ -113,7 +116,8 @@ class ProjectCreator
             $io->writeln('');
             $io->writeln('<info>Next steps:</info>');
             $io->writeln("  cd {$name}");
-            $io->writeln('  php -S 127.0.0.1:8000 -t public public/index.php');
+            $io->writeln('  php sahil start                 (http://127.0.0.1:8000)');
+            $io->writeln('  php sahil start --port=8088     (use another port)');
             $io->writeln('');
 
             return true;
@@ -264,14 +268,14 @@ class ProjectCreator
             );
         }
 
-        // Copy vite.config.js
-        if ($this->filesystem->exists($uiStubPath . '/vite.config.js')) {
-            $this->filesystem->copy(
-                $uiStubPath . '/vite.config.js',
-                $directory . '/vite.config.js',
-                true
-            );
-        }
+        // vite.config.js is generated from the framework's ProfilePlan instead of
+        // being shipped as a stub copy, so this installer and `bin/sahil
+        // ui:install` cannot drift apart. The stub tree only carries views and
+        // the profile's stylesheet/script sources.
+        $this->filesystem->dumpFile(
+            $directory . '/vite.config.js',
+            $this->uiConfig->viteConfig($ui)
+        );
 
         // Remove stubs directory if it exists
         if ($this->filesystem->exists($directory . '/stubs')) {
