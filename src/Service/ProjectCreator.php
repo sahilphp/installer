@@ -138,12 +138,16 @@ class ProjectCreator
             // Use composer create-project to download the starter-kit
             $io->writeln('<comment>Downloading starter-kit from Packagist...</comment>');
 
+            // Dependencies are installed after the UI profile is applied, so the
+            // package's post-create-project-cmd must not run here: it invokes
+            // bin/sahil, which needs vendor/autoload.php.
             $process = new Process([
                 'composer',
                 'create-project',
                 'sahilphp/starter-kit',
                 $directory,
                 '--no-install',
+                '--no-scripts',
                 '--prefer-dist',
                 '--no-interaction'
             ]);
@@ -360,6 +364,12 @@ class ProjectCreator
         if ($this->filesystem->exists($envExample) && !$this->filesystem->exists($envFile)) {
             $this->filesystem->copy($envExample, $envFile);
             $io->writeln('<comment>Created .env file from .env.example</comment>');
+        }
+
+        if (!$this->filesystem->exists($directory . '/vendor/autoload.php')) {
+            $io->warning('Composer dependencies are not installed; run "composer install", then "php bin/sahil key:generate" and "php bin/sahil storage:prepare".');
+
+            return;
         }
 
         if (!$this->filesystem->exists($directory . '/bin/sahil')) {
