@@ -3,35 +3,26 @@
 
 declare(strict_types=1);
 
-/**
- * SahilPHP Installer - CLI entry point.
- *
- * Usage:
- *   sahilphp new <name> [options]
- *   sahilphp doctor
- *   sahilphp --help
- */
-require_once __DIR__.'/../vendor/autoload.php';
-
-use SahilPHP\Installer\Application as InstallerApplication;
-use Symfony\Component\Console\Application;
-use Symfony\Component\Debug\Debug;
-
-$isCli = PHP_SAPI === 'cli';
-
-if (!$isCli) {
-    fwrite(STDERR, 'This binary must be run from the command line.' . PHP_EOL);
+if (PHP_VERSION_ID < 80400) {
+    fwrite(STDERR, "SahilPHP Installer requires PHP 8.4 or higher. You are running " . PHP_VERSION . ".\n");
     exit(1);
 }
 
-if (getenv('SAHIL_INSTALLER_DEBUG') === '1') {
-    Debug::enable();
+$autoloaders = [
+    __DIR__ . '/../../../autoload.php',
+    __DIR__ . '/../vendor/autoload.php',
+];
+
+foreach ($autoloaders as $file) {
+    if (is_file($file)) {
+        require $file;
+        break;
+    }
 }
 
-$application = new Application('SahilPHP Installer');
-$application->setDefaultCommand('new');
-$application->setCatchExceptions(false);
+if (!class_exists(SahilPHP\Installer\Application::class)) {
+    fwrite(STDERR, "Could not find the Composer autoloader. Run 'composer install'.\n");
+    exit(1);
+}
 
-$exitCode = $application->run();
-
-exit($exitCode);
+exit((new SahilPHP\Installer\Application())->run());
