@@ -14,6 +14,7 @@ namespace Symfony\Component\Console\Helper;
 use Symfony\Component\Console\Exception\InvalidArgumentException;
 use Symfony\Component\Console\Exception\RuntimeException;
 use Symfony\Component\Console\Formatter\OutputFormatter;
+use Symfony\Component\Console\Formatter\OutputFormatterInterface;
 use Symfony\Component\Console\Formatter\WrappableOutputFormatterInterface;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\ConsoleSectionOutput;
@@ -46,7 +47,6 @@ class Table
     private array $rows = [];
     private array $effectiveColumnWidths = [];
     private int $numberOfColumns;
-    private OutputInterface $output;
     private TableStyle $style;
     private array $columnStyles = [];
     private array $columnWidths = [];
@@ -59,10 +59,9 @@ class Table
 
     private static array $styles;
 
-    public function __construct(OutputInterface $output)
-    {
-        $this->output = $output;
-
+    public function __construct(
+        private OutputInterface $output,
+    ) {
         self::$styles ??= self::initStyles();
 
         $this->setStyle('default');
@@ -70,10 +69,8 @@ class Table
 
     /**
      * Sets a style definition.
-     *
-     * @return void
      */
-    public static function setStyleDefinition(string $name, TableStyle $style)
+    public static function setStyleDefinition(string $name, TableStyle $style): void
     {
         self::$styles ??= self::initStyles();
 
@@ -200,7 +197,7 @@ class Table
     /**
      * @return $this
      */
-    public function setRows(array $rows)
+    public function setRows(array $rows): static
     {
         $this->rows = [];
 
@@ -342,10 +339,8 @@ class Table
      *     | 9971-5-0210-0 | A Tale of Two Cities  | Charles Dickens  |
      *     | 960-425-059-0 | The Lord of the Rings | J. R. R. Tolkien |
      *     +---------------+-----------------------+------------------+
-     *
-     * @return void
      */
-    public function render()
+    public function render(): void
     {
         if ($this->output instanceof ConsoleSectionOutput && $this->output->isDecorated()) {
             // remember the lines on screen, so that appendRow() can rewrite only the ones that change
@@ -438,9 +433,13 @@ class Table
         $rowGroups = $this->buildTableRows($rows);
         $this->calculateColumnsWidth($rowGroups);
 
+        $isMarkdown = self::$styles['markdown'] === $this->style;
+        // a markdown table must start with a header row, so one is added when the table has none
+        $needsMarkdownHeader = $isMarkdown && ($horizontal || $vertical || !array_filter($this->headers));
         $isHeader = !$horizontal;
         $isFirstRow = $horizontal;
-        $hasTitle = (bool) $this->headerTitle;
+        // a title would break the delimiter row of a markdown table
+        $hasTitle = (bool) $this->headerTitle && !$isMarkdown;
         $previousRow = null;
         $pendingSeparators = 0;
 
@@ -450,7 +449,8 @@ class Table
             foreach ($rowGroup as $row) {
                 if ($divider === $row) {
                     $isHeader = false;
-                    $isFirstRow = true;
+                    // the delimiter row of a markdown table is written after its first header row
+                    $isFirstRow = !$isMarkdown;
 
                     continue;
                 }
@@ -466,11 +466,18 @@ class Table
                     continue;
                 }
 
+                if ($needsMarkdownHeader) {
+                    $this->renderRow(array_fill(0, $this->numberOfColumns, ''), $this->style->getCellHeaderFormat());
+                    $this->renderRowSeparator(self::SEPARATOR_TOP_BOTTOM);
+                    $needsMarkdownHeader = false;
+                    $isFirstRow = false;
+                }
+
                 for (; $pendingSeparators > 0; --$pendingSeparators) {
                     $this->renderRowSeparator(self::SEPARATOR_MID, null, null, $previousRow, $row);
                 }
 
-                if ($isHeader && !$isHeaderSeparatorRendered) {
+                if ($isHeader && !$isHeaderSeparatorRendered && $this->style->displayOutsideBorder()) {
                     $this->renderRowSeparator(
                         self::SEPARATOR_TOP,
                         $hasTitle ? $this->headerTitle : null,
@@ -505,6 +512,12 @@ class Table
                     $this->renderRow($row, $isHeader ? $this->style->getCellHeaderFormat() : $this->style->getCellRowFormat());
                 }
 
+                if ($isMarkdown && $isHeader) {
+                    // a markdown table has a single header row, so the next header rows are rendered as body rows
+                    $this->renderRowSeparator(self::SEPARATOR_TOP_BOTTOM);
+                    $isHeader = false;
+                }
+
                 $previousRow = $row;
             }
         }
@@ -513,7 +526,9 @@ class Table
             $this->renderRowSeparator(self::SEPARATOR_MID, null, null, $previousRow);
         }
 
-        $this->renderRowSeparator(self::SEPARATOR_BOTTOM, $this->footerTitle, $this->style->getFooterTitleFormat(), $previousRow);
+        if ($this->getStyle()->displayOutsideBorder()) {
+            $this->renderRowSeparator(self::SEPARATOR_BOTTOM, $this->footerTitle, $this->style->getFooterTitleFormat(), $previousRow);
+        }
 
         $this->cleanup();
     }
@@ -692,6 +707,7 @@ class Table
     {
         /** @var WrappableOutputFormatterInterface $formatter */
         $formatter = $this->output->getFormatter();
+        $isMarkdown = self::$styles['markdown'] === $this->style;
         $unmergedRows = [];
         for ($rowKey = 0; $rowKey < \count($rows); ++$rowKey) {
             $rows = $this->fillNextRows($rows, $rowKey);
@@ -748,6 +764,13 @@ class Table
                         // a width set through setColumnWidth() is a minimum, unlike one computed for an earlier row
                         $this->columnWidths[$i] = max($this->configuredColumnWidths[$i] ?? 0, $cellWidth + $lengthColumnBorder);
                     }
+                }
+                if ($isMarkdown && !$cell instanceof TableSeparator) {
+                    // double the backslashes before a <br> so that markdown does not escape it, and add one that the output formatter removes
+                    $escaped = preg_replace(['/\\\\++(?=[\r\n])/', '/\r\n?|\n/'], ['$0$0\\\\', '<br>'], str_replace('|', '\|', $cell ?? ''));
+                    $rows[$rowKey][$column] = $cell instanceof TableCell || $colspan > 1 ? new TableCell($escaped, ['colspan' => $colspan, 'style' => $cell instanceof TableCell ? $cell->getStyle() : null]) : $escaped;
+
+                    continue;
                 }
                 if (!$wrapped && !str_contains($cell ?? '', "\n")) {
                     continue;
@@ -826,7 +849,7 @@ class Table
 
         foreach ($unmergedRows as $unmergedRowKey => $unmergedRow) {
             // we need to know if $unmergedRow will be merged or inserted into $rows
-            if (isset($rows[$unmergedRowKey]) && \is_array($rows[$unmergedRowKey]) && ($this->getNumberOfColumns($rows[$unmergedRowKey]) + $this->getNumberOfColumns($unmergedRows[$unmergedRowKey]) <= $this->numberOfColumns)) {
+            if (isset($rows[$unmergedRowKey]) && \is_array($rows[$unmergedRowKey]) && ($this->getNumberOfColumns($rows[$unmergedRowKey]) + $this->getNumberOfColumns($unmergedRow) <= $this->numberOfColumns)) {
                 foreach ($unmergedRow as $cellKey => $cell) {
                     // insert cell into row at cellKey position
                     array_splice($rows[$unmergedRowKey], $cellKey, 0, [$cell]);
@@ -834,8 +857,8 @@ class Table
             } else {
                 $row = $this->copyRow($rows, $unmergedRowKey - 1);
                 foreach ($unmergedRow as $column => $cell) {
-                    if (!empty($cell)) {
-                        $row[$column] = $unmergedRow[$column];
+                    if ($cell) {
+                        $row[$column] = $cell;
                     }
                 }
                 array_splice($rows, $unmergedRowKey, 0, [$row]);
@@ -855,6 +878,10 @@ class Table
         foreach ($row as $column => $cell) {
             $newRow[] = $cell;
             if ($cell instanceof TableCell && $cell->getColspan() > 1) {
+                if (self::$styles['markdown'] === $this->style) {
+                    // markdown has no colspan and needs one cell per column, so the cell only fills the first column it spans
+                    $newRow[array_key_last($newRow)] = new TableCell((string) $cell, ['style' => $cell->getStyle()]);
+                }
                 foreach (range($column + 1, $column + $cell->getColspan() - 1) as $position) {
                     // insert empty value at column position
                     $newRow[] = '';
@@ -983,32 +1010,45 @@ class Table
      */
     private function calculateColumnsWidth(iterable $groups): void
     {
-        for ($column = 0; $column < $this->numberOfColumns; ++$column) {
-            $lengths = [];
-            foreach ($groups as $group) {
-                foreach ($group as $row) {
-                    if ($row instanceof TableSeparator) {
-                        continue;
-                    }
+        $formatter = $this->output->getFormatter();
 
-                    foreach ($row as $i => $cell) {
-                        if ($cell instanceof TableCell) {
-                            $textContent = Helper::removeDecoration($this->output->getFormatter(), $cell);
-                            $textLength = Helper::width($textContent);
-                            if ($textLength > 0) {
-                                $contentColumns = mb_str_split($textContent, ceil($textLength / $cell->getColspan()));
-                                foreach ($contentColumns as $position => $content) {
-                                    $row[$i + $position] = OutputFormatter::escape($content);
-                                }
+        // Initialize max widths for all columns
+        $maxColumnWidths = array_fill(0, $this->numberOfColumns, 0);
+
+        // Single pass through all rows to calculate all column widths at once
+        foreach ($groups as $group) {
+            foreach ($group as $row) {
+                if ($row instanceof TableSeparator) {
+                    continue;
+                }
+
+                // Process TableCell colspan splitting once per row
+                foreach ($row as $i => $cell) {
+                    if ($cell instanceof TableCell && $cell->getColspan() > 1) {
+                        $textContent = Helper::removeDecoration($formatter, $cell);
+                        $textLength = Helper::width($textContent);
+                        if ($textLength > 0) {
+                            $contentColumns = mb_str_split($textContent, (int) ceil($textLength / $cell->getColspan()));
+                            foreach ($contentColumns as $position => $content) {
+                                $row[$i + $position] = OutputFormatter::escape($content);
                             }
                         }
                     }
+                }
 
-                    $lengths[] = $this->getCellWidth($row, $column);
+                // Calculate width for each column in this row
+                for ($column = 0; $column < $this->numberOfColumns; ++$column) {
+                    $cellWidth = $this->getCellWidth($row, $column, $formatter);
+                    if ($cellWidth > $maxColumnWidths[$column]) {
+                        $maxColumnWidths[$column] = $cellWidth;
+                    }
                 }
             }
+        }
 
-            $this->effectiveColumnWidths[$column] = max($lengths) + Helper::width($this->style->getCellRowContentFormat()) - 2;
+        $cellContentFormatWidth = Helper::width($this->style->getCellRowContentFormat()) - 2;
+        for ($column = 0; $column < $this->numberOfColumns; ++$column) {
+            $this->effectiveColumnWidths[$column] = $maxColumnWidths[$column] + $cellContentFormatWidth;
         }
     }
 
@@ -1017,19 +1057,19 @@ class Table
         return Helper::width(\sprintf($this->style->getBorderFormat(), $this->style->getBorderChars()[3]));
     }
 
-    private function getCellWidth(array $row, int $column): int
+    private function getCellWidth(array $row, int $column, OutputFormatterInterface $formatter): int
     {
         $cellWidth = 0;
 
         if (isset($row[$column])) {
             $cell = $row[$column];
-            $cellWidth = Helper::width(Helper::removeDecoration($this->output->getFormatter(), $cell));
+            $cellWidth = Helper::width(Helper::removeDecoration($formatter, $cell));
         }
 
         $columnWidth = $this->columnWidths[$column] ?? 0;
         $cellWidth = max($cellWidth, $columnWidth);
 
-        return isset($this->columnMaxWidths[$column]) ? min($this->columnMaxWidths[$column], $cellWidth) : $cellWidth;
+        return isset($this->columnMaxWidths[$column]) && self::$styles['markdown'] !== $this->style ? min($this->columnMaxWidths[$column], $cellWidth) : $cellWidth;
     }
 
     /**
@@ -1048,6 +1088,12 @@ class Table
      */
     private static function initStyles(): array
     {
+        $markdown = new TableStyle();
+        $markdown
+            ->setDefaultCrossingChar('|')
+            ->setDisplayOutsideBorder(false)
+        ;
+
         $borderless = new TableStyle();
         $borderless
             ->setHorizontalBorderChars('=')
@@ -1085,6 +1131,7 @@ class Table
 
         return [
             'default' => new TableStyle(),
+            'markdown' => $markdown,
             'borderless' => $borderless,
             'compact' => $compact,
             'symfony-style-guide' => $styleGuide,

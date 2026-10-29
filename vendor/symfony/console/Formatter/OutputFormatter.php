@@ -27,7 +27,6 @@ class OutputFormatter implements WrappableOutputFormatterInterface
     private const ANSI_PATTERN = '\\x1B(?:\\[[0-9;:]*m|\\]8;[^;]*;[^\\x1B]*\\x1B\\\\)';
     private const ANSI_REGEX = '/'.self::ANSI_PATTERN.'/';
 
-    private bool $decorated;
     private array $styles = [];
     private OutputFormatterStyleStack $styleStack;
     private array $charWidths = [];
@@ -72,10 +71,10 @@ class OutputFormatter implements WrappableOutputFormatterInterface
      *
      * @param OutputFormatterStyleInterface[] $styles Array of "name => FormatterStyle" instances
      */
-    public function __construct(bool $decorated = false, array $styles = [])
-    {
-        $this->decorated = $decorated;
-
+    public function __construct(
+        private bool $decorated = false,
+        array $styles = [],
+    ) {
         $this->setStyle('error', new OutputFormatterStyle('white', 'red'));
         $this->setStyle('info', new OutputFormatterStyle('green'));
         $this->setStyle('comment', new OutputFormatterStyle('yellow'));
@@ -88,10 +87,7 @@ class OutputFormatter implements WrappableOutputFormatterInterface
         $this->styleStack = new OutputFormatterStyleStack();
     }
 
-    /**
-     * @return void
-     */
-    public function setDecorated(bool $decorated)
+    public function setDecorated(bool $decorated): void
     {
         $this->decorated = $decorated;
     }
@@ -101,10 +97,7 @@ class OutputFormatter implements WrappableOutputFormatterInterface
         return $this->decorated;
     }
 
-    /**
-     * @return void
-     */
-    public function setStyle(string $name, OutputFormatterStyleInterface $style)
+    public function setStyle(string $name, OutputFormatterStyleInterface $style): void
     {
         $this->styles[strtolower($name)] = $style;
     }
@@ -128,10 +121,7 @@ class OutputFormatter implements WrappableOutputFormatterInterface
         return $this->formatAndWrap($message, 0);
     }
 
-    /**
-     * @return string
-     */
-    public function formatAndWrap(?string $message, int $width)
+    public function formatAndWrap(?string $message, int $width): string
     {
         if (null === $message) {
             return '';
