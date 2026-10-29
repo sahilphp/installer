@@ -4,17 +4,14 @@ declare(strict_types=1);
 
 namespace SahilPHP\Installer\Ui;
 
-use backedEnumerator;
-
 /**
  * UI framework choice for new project creation.
  */
-#[backed('string')]
 final class UiChoice
 {
     public function __construct(
-        public string $value,
-        public string $label,
+        public readonly string $value,
+        public readonly string $label,
     ) {
     }
 
@@ -40,5 +37,13 @@ final class UiChoice
     public function __toString(): string
     {
         return $this->value;
+    }
+
+    /**
+     * @return list<self>
+     */
+    public static function all(): array
+    {
+        return [self::tailwind(), self::bootstrap()];
     }
 }

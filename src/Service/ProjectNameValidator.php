@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace SahilPHP\Installer\Service;
 
-final class ProjectNameValidator
+class ProjectNameValidator
 {
     public function isValid(string $name): bool
     {
         // Reject empty names
-        if ($name === '' || $name === null) {
+        if ($name === '') {
             return false;
         }
 
@@ -30,7 +30,7 @@ final class ProjectNameValidator
     {
         $errors = [];
 
-        if ($name === '' || $name === null) {
+        if ($name === '') {
             $errors[] = 'Project name cannot be empty';
         }
 
@@ -51,5 +51,17 @@ final class ProjectNameValidator
         }
 
         return $errors;
+    }
+
+    /**
+     * Validate a name that might be null (from user input).
+     */
+    public function isValidOrNull(?string $name): bool
+    {
+        if ($name === null) {
+            return false;
+        }
+
+        return $this->isValid($name);
     }
 }
