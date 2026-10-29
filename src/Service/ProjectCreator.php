@@ -92,7 +92,7 @@ class ProjectCreator
                 // Install Composer dependencies
                 $io->writeln('<comment>Installing Composer dependencies...</comment>');
                 if (!$this->installComposerDependencies($directory, $io)) {
-                    $io->error('Failed to install Composer dependencies.');
+                    $io->writeln('<comment>Removing the partial project directory.</comment>');
                     Cleaner::remove($directory);
                     return false;
                 }
@@ -298,9 +298,32 @@ class ProjectCreator
             return;
         }
 
-        $composerJson['name'] = strtolower(preg_replace('/[^a-z0-9]/', '-', $name) ?? $name);
+        $composerJson['name'] = $this->composerPackageName($name, $composerJson['name'] ?? null);
 
         file_put_contents($composerJsonPath, json_encode($composerJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+    }
+
+    /**
+     * Build a schema-valid Composer package name for the new project.
+     *
+     * Composer requires "vendor/package", so the starter-kit's vendor segment
+     * is kept and only the package segment comes from the project name.
+     */
+    private function composerPackageName(string $name, mixed $currentName): string
+    {
+        $vendor = 'sahilphp';
+
+        if (is_string($currentName) && str_contains($currentName, '/')) {
+            $candidate = strtolower((string) strstr($currentName, '/', true));
+
+            if (preg_match('/^[a-z0-9]([_.-]?[a-z0-9]+)*$/', $candidate) === 1) {
+                $vendor = $candidate;
+            }
+        }
+
+        $package = trim(strtolower((string) preg_replace('/[^A-Za-z0-9]+/', '-', $name)), '-');
+
+        return $vendor . '/' . ($package === '' ? 'app' : $package);
     }
 
     /**
@@ -316,7 +339,13 @@ class ProjectCreator
             $io->write($buffer, false);
         });
 
-        return $process->isSuccessful();
+        if (!$process->isSuccessful()) {
+            $this->reportProcessFailure($io, 'composer install', $process);
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -333,26 +362,60 @@ class ProjectCreator
             $io->writeln('<comment>Created .env file from .env.example</comment>');
         }
 
-        // Run key:generate if bin/sahil exists
-        if ($this->filesystem->exists($directory . '/bin/sahil')) {
-            $process = new Process(['php', 'bin/sahil', 'key:generate']);
-            $process->setWorkingDirectory($directory);
-            $process->run();
+        if (!$this->filesystem->exists($directory . '/bin/sahil')) {
+            $io->warning('bin/sahil is missing; the application key and storage directories were not prepared.');
 
-            if ($process->isSuccessful()) {
-                $io->writeln('<comment>Application key generated</comment>');
-            }
+            return;
         }
 
-        // Run storage:prepare if bin/sahil exists
-        if ($this->filesystem->exists($directory . '/bin/sahil')) {
-            $process = new Process(['php', 'bin/sahil', 'storage:prepare']);
+        $steps = [
+            'key:generate' => 'Application key generated',
+            'storage:prepare' => 'Storage prepared',
+        ];
+
+        foreach ($steps as $command => $success) {
+            $process = new Process(['php', 'bin/sahil', $command]);
             $process->setWorkingDirectory($directory);
             $process->run();
 
             if ($process->isSuccessful()) {
-                $io->writeln('<comment>Storage prepared</comment>');
+                $io->writeln('<comment>' . $success . '</comment>');
+
+                continue;
             }
+
+            $this->reportProcessFailure($io, 'php bin/sahil ' . $command, $process);
+        }
+    }
+
+    /**
+     * Report why an external command failed.
+     *
+     * The captured stderr is the only place the cause is recorded, so it is
+     * printed instead of leaving a generic failure line or no line at all.
+     */
+    private function reportProcessFailure(SymfonyStyle $io, string $command, Process $process): void
+    {
+        $exitCode = $process->getExitCode();
+
+        $io->error(sprintf(
+            '%s failed%s.',
+            $command,
+            $exitCode === null ? '' : sprintf(' (exit code %d)', $exitCode)
+        ));
+
+        $details = trim($process->getErrorOutput());
+
+        if ($details === '') {
+            $details = trim($process->getOutput());
+        }
+
+        if ($details === '') {
+            return;
+        }
+
+        foreach (array_slice(preg_split('/\R/', $details) ?: [], -15) as $line) {
+            $io->writeln('  ' . $line);
         }
     }
 }
