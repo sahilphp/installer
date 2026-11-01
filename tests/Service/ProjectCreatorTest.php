@@ -60,6 +60,36 @@ final class ProjectCreatorTest extends TestCase
         $this->assertFalse($result);
     }
 
+    public function testNextStepsUseTheProjectCliInsteadOfARawPhpServerCommand(): void
+    {
+        $lines = ProjectCreator::nextSteps('test-app', UiChoice::tailwind());
+        $joined = implode("\n", $lines);
+
+        $this->assertSame('cd test-app', $lines[0]);
+        $this->assertStringContainsString('php sahil start', $joined);
+        $this->assertStringContainsString('composer start', $joined);
+        $this->assertStringNotContainsString('php -S', $joined);
+        $this->assertStringNotContainsString('public/index.php', $joined);
+    }
+
+    public function testNextStepsPrintTheChosenProfileAndThePageUrls(): void
+    {
+        $tailwind = implode("\n", ProjectCreator::nextSteps('test-app', UiChoice::tailwind()));
+
+        $this->assertStringContainsString('UI profile: Tailwind CSS (tailwind)', $tailwind);
+        $this->assertStringContainsString('http://127.0.0.1:8000/          welcome page', $tailwind);
+        $this->assertStringContainsString('http://127.0.0.1:8000/ui-kit', $tailwind);
+        $this->assertStringContainsString('http://127.0.0.1:8000/health', $tailwind);
+        $this->assertStringContainsString('php sahil make:auth', $tailwind);
+        $this->assertStringContainsString('http://127.0.0.1:8000/login', $tailwind);
+        $this->assertStringContainsString('http://127.0.0.1:8000/register', $tailwind);
+        $this->assertStringContainsString('http://127.0.0.1:8000/dashboard', $tailwind);
+
+        $bootstrap = implode("\n", ProjectCreator::nextSteps('test-app', UiChoice::bootstrap()));
+
+        $this->assertStringContainsString('UI profile: Bootstrap 5 (bootstrap)', $bootstrap);
+    }
+
     public function testValidatesProjectNameCorrectly(): void
     {
         $validator = new ProjectNameValidator();

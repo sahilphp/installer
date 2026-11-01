@@ -115,9 +115,11 @@ class ProjectCreator
             $io->success(sprintf('Project "%s" created successfully!', $name));
             $io->writeln('');
             $io->writeln('<info>Next steps:</info>');
-            $io->writeln("  cd {$name}");
-            $io->writeln('  php sahil start                 (http://127.0.0.1:8000)');
-            $io->writeln('  php sahil start --port=8088     (use another port)');
+
+            foreach (self::nextSteps($name, $ui) as $line) {
+                $io->writeln($line === '' ? '' : '  ' . $line);
+            }
+
             $io->writeln('');
 
             return true;
@@ -129,6 +131,35 @@ class ProjectCreator
             }
             return false;
         }
+    }
+
+    /**
+     * Commands a user runs after `sahilphp new`.
+     *
+     * The generated project ships `bin/sahil start`, so nobody is told to
+     * assemble a raw `php -S … -t public public/index.php` command by hand.
+     *
+     * @return list<string>
+     */
+    public static function nextSteps(string $name, UiChoice $ui): array
+    {
+        return [
+            sprintf('cd %s', $name),
+            'php sahil start                 (http://127.0.0.1:8000)',
+            'composer start                  (the same server through Composer)',
+            'php sahil start --port=8088     (use another port)',
+            '',
+            sprintf('UI profile: %s (%s)', $ui->label, $ui->value),
+            'http://127.0.0.1:8000/          welcome page',
+            'http://127.0.0.1:8000/ui-kit    component gallery',
+            'http://127.0.0.1:8000/health    health check',
+            '',
+            'Generate the authentication pages with: php sahil make:auth',
+            'Then open:',
+            'http://127.0.0.1:8000/login',
+            'http://127.0.0.1:8000/register',
+            'http://127.0.0.1:8000/dashboard',
+        ];
     }
 
     /**
