@@ -194,7 +194,7 @@ class ProjectCreator
             $process = new Process([
                 'composer',
                 'create-project',
-                'sahilphp/sahilphp',
+                'sahilphp/starter-kit',
                 $directory,
                 '--no-install',
                 '--no-scripts',
@@ -213,6 +213,8 @@ class ProjectCreator
 
             // Remove unnecessary files
             $filesToRemove = [
+
+        // Copy the UI kit and CSS framework stubs from the starter-kit.$this->copyStubs($starterKitPath, $directory);
                 $directory . '/.git',
                 $directory . '/composer.lock',
                 $directory . '/node_modules',
@@ -220,6 +222,8 @@ class ProjectCreator
             ];
 
             foreach ($filesToRemove as $file) {
+
+        // Copy the UI kit and CSS framework stubs from the starter-kit.$this->copyStubs($starterKitPath, $directory);
                 if ($this->filesystem->exists($file)) {
                     $this->filesystem->remove($file);
                 }
@@ -236,6 +240,8 @@ class ProjectCreator
 
         // Remove unnecessary files
         $filesToRemove = [
+
+        // Copy the UI kit and CSS framework stubs from the starter-kit.$this->copyStubs($starterKitPath, $directory);
             $directory . '/.git',
             $directory . '/composer.lock',
             $directory . '/node_modules',
@@ -243,13 +249,22 @@ class ProjectCreator
         ];
 
         foreach ($filesToRemove as $file) {
+
+        // Copy the UI kit and CSS framework stubs from the starter-kit.$this->copyStubs($starterKitPath, $directory);
             if ($this->filesystem->exists($file)) {
                 $this->filesystem->remove($file);
             }
         }
-
-        return true;
     }
+
+   private function copyStubs(string $starterKitPath, string $directory): void    {   
+        $stubSource = $starterKitPath . '/stubs';      
+        if ($this->filesystem->exists($stubSource)) {     
+            $stubTarget = $directory . '/stubs';            
+            $this->filesystem->mirror($stubSource, $stubTarget, null, [ override => true, follow_symlinks => true ]); 
+        }         
+    }  
+        
 
     /**
      * Find the starter-kit path.
