@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use SahilPHP\Installer\Service\ProjectCreator;
 use SahilPHP\Installer\Service\ProjectNameValidator;
 use SahilPHP\Installer\Ui\UiChoice;
+use SahilPHP\Installer\Ui\UiKit;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
@@ -39,7 +40,7 @@ final class ProjectCreatorTest extends TestCase
             ->with($this->stringContains('Invalid project name'));
 
         $creator = new ProjectCreator();
-        $result = $creator->create('invalid name', $this->tempDir . '/test', UiChoice::tailwind(), $io);
+        $result = $creator->create('invalid name', $this->tempDir . '/test', UiKit::None, UiChoice::tailwind(), $io);
 
         $this->assertFalse($result);
     }
@@ -55,14 +56,14 @@ final class ProjectCreatorTest extends TestCase
             ->with($this->stringContains('already exists'));
 
         $creator = new ProjectCreator();
-        $result = $creator->create('existing', $existingDir, UiChoice::tailwind(), $io);
+        $result = $creator->create('existing', $existingDir, UiKit::None, UiChoice::tailwind(), $io);
 
         $this->assertFalse($result);
     }
 
     public function testNextStepsUseTheProjectCliInsteadOfARawPhpServerCommand(): void
     {
-        $lines = ProjectCreator::nextSteps('test-app', UiChoice::tailwind());
+        $lines = ProjectCreator::nextSteps('test-app', UiKit::None, UiChoice::tailwind());
         $joined = implode("\n", $lines);
 
         $this->assertSame('cd test-app', $lines[0]);
@@ -74,9 +75,10 @@ final class ProjectCreatorTest extends TestCase
 
     public function testNextStepsPrintTheChosenProfileAndThePageUrls(): void
     {
-        $tailwind = implode("\n", ProjectCreator::nextSteps('test-app', UiChoice::tailwind()));
+        $tailwind = implode("\n", ProjectCreator::nextSteps('test-app', UiKit::React, UiChoice::tailwind()));
 
-        $this->assertStringContainsString('UI profile: Tailwind CSS (tailwind)', $tailwind);
+        $this->assertStringContainsString('UI kit: React (react)', $tailwind);
+        $this->assertStringContainsString('CSS framework: Tailwind CSS v4 (tailwind)', $tailwind);
         $this->assertStringContainsString('http://127.0.0.1:8000/          welcome page', $tailwind);
         $this->assertStringContainsString('http://127.0.0.1:8000/ui-kit', $tailwind);
         $this->assertStringContainsString('http://127.0.0.1:8000/health', $tailwind);
@@ -85,9 +87,10 @@ final class ProjectCreatorTest extends TestCase
         $this->assertStringContainsString('http://127.0.0.1:8000/register', $tailwind);
         $this->assertStringContainsString('http://127.0.0.1:8000/dashboard', $tailwind);
 
-        $bootstrap = implode("\n", ProjectCreator::nextSteps('test-app', UiChoice::bootstrap()));
+        $bootstrap = implode("\n", ProjectCreator::nextSteps('test-app', UiKit::None, UiChoice::bootstrap()));
 
-        $this->assertStringContainsString('UI profile: Bootstrap 5 (bootstrap)', $bootstrap);
+        $this->assertStringContainsString('UI kit: Sahil Engine (none)', $bootstrap);
+        $this->assertStringContainsString('CSS framework: Bootstrap 5 (bootstrap)', $bootstrap);
     }
 
     public function testValidatesProjectNameCorrectly(): void

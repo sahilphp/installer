@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace SahilPHP\Installer\Ui;
 
 /**
- * UI framework choice for new project creation.
+ * CSS framework choice for new project creation.
+ *
+ * This is deliberately separate from {@see UiKit}: project creation always
+ * asks both questions before writing any file.
  */
 final class UiChoice
 {
@@ -17,7 +20,7 @@ final class UiChoice
 
     public static function tailwind(): self
     {
-        return new self('tailwind', 'Tailwind CSS');
+        return new self('tailwind', 'Tailwind CSS v4');
     }
 
     public static function bootstrap(): self
@@ -27,9 +30,9 @@ final class UiChoice
 
     public static function fromString(string $value): ?self
     {
-        return match ($value) {
-            'tailwind' => self::tailwind(),
-            'bootstrap' => self::bootstrap(),
+        return match (strtolower(trim($value))) {
+            'tailwind', 'tailwindcss', 'tailwind css v4', 'tailwind css' => self::tailwind(),
+            'bootstrap', 'bootstrap5', 'bootstrap 5' => self::bootstrap(),
             default => null,
         };
     }
@@ -45,5 +48,16 @@ final class UiChoice
     public static function all(): array
     {
         return [self::tailwind(), self::bootstrap()];
+    }
+
+    /**
+     * @return array<int, string> numbered choices for a ChoiceQuestion
+     */
+    public static function numberedChoices(): array
+    {
+        return [
+            1 => self::tailwind()->label,
+            2 => self::bootstrap()->label,
+        ];
     }
 }

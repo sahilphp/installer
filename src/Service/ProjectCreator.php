@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace SahilPHP\Installer\Service;
 
 use SahilPHP\Installer\Ui\UiChoice;
+use SahilPHP\Installer\Ui\UiKit;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
@@ -37,7 +38,8 @@ class ProjectCreator
      *
      * @param string $name Project name
      * @param string $directory Target directory (defaults to current directory + name)
-     * @param UiChoice $ui UI framework choice
+     * @param UiKit $uiKit UI kit choice
+     * @param UiChoice $css CSS framework choice
      * @param SymfonyStyle $io Console I/O for interaction
      * @param bool $installDependencies Whether to install Composer and npm dependencies
      * @return bool True on success, false on failure
@@ -45,7 +47,8 @@ class ProjectCreator
     public function create(
         string $name,
         string $directory,
-        UiChoice $ui,
+        UiKit $uiKit,
+        UiChoice $css,
         SymfonyStyle $io,
         bool $installDependencies = true
     ): bool {
@@ -80,16 +83,27 @@ class ProjectCreator
                 return false;
             }
 
-            // Configure UI framework
-            $io->writeln(sprintf('<comment>Configuring %s...</comment>', $ui->label));
-            if (!$this->configureUi($directory, $ui, $io)) {
-                $io->error('Failed to configure UI framework.');
+            // Apply the chosen UI kit and CSS framework before dependencies
+            // are installed. `ui:setup` needs no vendor tree, so this also
+            // works for --no-deps projects.
+            $io->writeln(sprintf(
+                '<comment>Configuring UI kit [%s] and CSS [%s]...</comment>',
+                $uiKit->value,
+                $css->value,
+            ));
+            if (!$this->configureUi($directory, $uiKit, $css, $io)) {
+                $io->error('Failed to configure UI kit and CSS framework.');
                 Cleaner::remove($directory);
                 return false;
             }
 
             // Update composer.json with project name
             $this->updateComposerJson($directory, $name);
+
+            // Require only the UI kit chosen by the user; the starter-kit's
+            // default `sahilphp/firefiber` dependency is removed unless it was
+            // chosen, so generated projects never ship unchosen UI libraries.
+            $this->syncUiDependencies($directory, $uiKit);
 
             if ($installDependencies) {
                 // Install Composer dependencies
@@ -116,7 +130,7 @@ class ProjectCreator
             $io->writeln('');
             $io->writeln('<info>Next steps:</info>');
 
-            foreach (self::nextSteps($name, $ui) as $line) {
+            foreach (self::nextSteps($name, $uiKit, $css) as $line) {
                 $io->writeln($line === '' ? '' : '  ' . $line);
             }
 
@@ -141,7 +155,7 @@ class ProjectCreator
      *
      * @return list<string>
      */
-    public static function nextSteps(string $name, UiChoice $ui): array
+    public static function nextSteps(string $name, UiKit $uiKit, UiChoice $css): array
     {
         return [
             sprintf('cd %s', $name),
@@ -149,12 +163,13 @@ class ProjectCreator
             'composer start                  (the same server through Composer)',
             'php sahil start --port=8088     (use another port)',
             '',
-            sprintf('UI profile: %s (%s)', $ui->label, $ui->value),
+            sprintf('UI kit: %s (%s)', $uiKit->shortLabel(), $uiKit->value),
+            sprintf('CSS framework: %s (%s)', $css->label, $css->value),
             'http://127.0.0.1:8000/          welcome page',
             'http://127.0.0.1:8000/ui-kit    component gallery',
             'http://127.0.0.1:8000/health    health check',
             '',
-            'Generate the authentication pages with: php sahil make:auth',
+            'Generate the complete authentication implementation with: php sahil make:auth',
             'Then open:',
             'http://127.0.0.1:8000/login',
             'http://127.0.0.1:8000/register',
@@ -179,7 +194,7 @@ class ProjectCreator
             $process = new Process([
                 'composer',
                 'create-project',
-                'sahilphp/starter-kit',
+                'sahilphp/sahilphp',
                 $directory,
                 '--no-install',
                 '--no-scripts',
@@ -258,62 +273,124 @@ class ProjectCreator
     }
 
     /**
-     * Configure the selected UI framework.
+     * Apply the selected UI kit and CSS framework through the starter kit's
+     * own `ui:setup` command.
+     *
+     * The two choices travel as environment variables as well as flags, so
+     * the starter kit never asks the user a second time. Only the chosen
+     * stub trees are copied, and `ui:setup` deletes `stubs/` afterwards.
      */
-    private function configureUi(string $directory, UiChoice $ui, SymfonyStyle $io): bool
-    {
-        // Try local development path first
-        $uiStubPath = dirname(__DIR__, 3) . '/starter-kit/stubs/ui/' . $ui->value;
+    private function configureUi(
+        string $directory,
+        UiKit $uiKit,
+        UiChoice $css,
+        SymfonyStyle $io
+    ): bool {
+        if (!$this->filesystem->exists($directory . '/bin/sahil')) {
+            $io->error('bin/sahil is missing from the starter-kit; UI setup cannot run.');
 
-        // If not found, try vendor path
-        if (!$this->filesystem->exists($uiStubPath)) {
-            $uiStubPath = dirname(__DIR__, 5) . '/sahilphp/starter-kit/stubs/ui/' . $ui->value;
+            return false;
         }
 
-        // If still not found, the stubs should be in the downloaded project
-        if (!$this->filesystem->exists($uiStubPath)) {
-            // Check if stubs are already in the project (from composer create-project)
-            $projectUiStubPath = $directory . '/stubs/ui/' . $ui->value;
-            if ($this->filesystem->exists($projectUiStubPath)) {
-                $uiStubPath = $projectUiStubPath;
-            } else {
-                $io->warning(sprintf('UI stubs not found for %s, skipping UI configuration.', $ui->label));
-                return true;
-            }
-        }
-
-        // Copy UI-specific files
-        $this->filesystem->mirror(
-            $uiStubPath . '/resources',
-            $directory . '/resources',
-            null,
-            ['override' => true, 'delete' => false]
+        $process = new Process(
+            [
+                PHP_BINARY,
+                'bin/sahil',
+                'ui:setup',
+                '--ui-kit=' . $uiKit->value,
+                '--css=' . $css->value,
+            ],
+            $directory,
+            [
+                'SAHILPHP_UI_KIT' => $uiKit->value,
+                'SAHILPHP_CSS' => $css->value,
+                'SAHILPHP_INSTALLER' => '1',
+            ],
         );
+        $process->setTimeout(300);
+        $process->run(function ($type, $buffer) use ($io) {
+            $io->write($buffer, false);
+        });
 
-        // Copy package.json
-        if ($this->filesystem->exists($uiStubPath . '/package.json')) {
-            $this->filesystem->copy(
-                $uiStubPath . '/package.json',
-                $directory . '/package.json',
-                true
-            );
+        if (!$process->isSuccessful()) {
+            $this->reportProcessFailure($io, 'php bin/sahil ui:setup', $process);
+
+            return false;
         }
 
-        // vite.config.js is generated from the framework's ProfilePlan instead of
-        // being shipped as a stub copy, so this installer and `bin/sahil
-        // ui:install` cannot drift apart. The stub tree only carries views and
-        // the profile's stylesheet/script sources.
-        $this->filesystem->dumpFile(
-            $directory . '/vite.config.js',
-            $this->uiConfig->viteConfig($ui)
-        );
-
-        // Remove stubs directory if it exists
+        // `ui:setup` removes the stub tree itself; keep this as a safety net
+        // for an interrupted run.
         if ($this->filesystem->exists($directory . '/stubs')) {
             $this->filesystem->remove($directory . '/stubs');
         }
 
         return true;
+    }
+
+    /**
+     * Make the generated project require exactly the selected UI library.
+     *
+     * The starter-kit ships `sahilphp/firefiber` as its default UI
+     * dependency. Project creation must install only the UI kit chosen
+     * by the user, so every UI integration package is dropped from the
+     * generated `composer.json` and only the selected one is required
+     * (none when "none" is chosen). The change happens before
+     * `composer install`, so the lock file never contains an unchosen
+     * UI package.
+     *
+     * @var list<string>
+     */
+    private const UI_PACKAGES = [
+        'sahilphp/firefiber',
+        'sahilphp/react',
+        'sahilphp/vue',
+        'sahilphp/svelte',
+    ];
+
+    private function syncUiDependencies(string $directory, UiKit $uiKit): void
+    {
+        $composerJsonPath = $directory . '/composer.json';
+
+        if (!$this->filesystem->exists($composerJsonPath)) {
+            return;
+        }
+
+        $content = file_get_contents($composerJsonPath);
+        if ($content === false) {
+            return;
+        }
+
+        $composerJson = json_decode($content, true);
+        if (!is_array($composerJson)) {
+            return;
+        }
+
+        $require = $composerJson['require'] ?? [];
+        if (!is_array($require)) {
+            $require = [];
+        }
+
+        foreach (self::UI_PACKAGES as $package) {
+            unset($require[$package]);
+        }
+
+        if ($uiKit !== UiKit::None) {
+            $require['sahilphp/'.$uiKit->value] = '^1.0';
+        }
+
+        // The starter-kit ships a path repository to the colocated `firefiber`
+        // checkout (monorepo local development). A generated project lives
+        // outside that layout, so the entry would point at nothing and break
+        // `composer install`; UI packages resolve from Packagist (or from
+        // repositories the operator configures) instead.
+        unset($composerJson['repositories']);
+
+        ksort($require);
+        $composerJson['require'] = $require;
+
+        if (file_put_contents($composerJsonPath, json_encode($composerJson, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)) === false) {
+            throw new \RuntimeException('Unable to update '.$composerJsonPath.' with the selected UI package.');
+        }
     }
 
     /**

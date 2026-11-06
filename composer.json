@@ -1,4 +1,5 @@
 {
+    "$schema": "https://getcomposer.org/schema.json",
     "name": "sahilphp/installer",
     "type": "library",
     "description": "SahilPHP Installer - Creates new SahilPHP projects with Tailwind CSS or Bootstrap 5",

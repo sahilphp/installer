@@ -8,11 +8,12 @@ use PHPUnit\Framework\TestCase;
 use SahilPHP\Installer\Command\NewCommand;
 use SahilPHP\Installer\Service\ProjectCreator;
 use SahilPHP\Installer\Ui\UiChoice;
+use SahilPHP\Installer\Ui\UiKit;
 use Symfony\Component\Console\Tester\CommandTester;
 
 final class NewCommandTest extends TestCase
 {
-    public function testCommandAcceptsPositionalProjectName(): void
+    public function testCommandAcceptsPositionalProjectNameAndBothOptions(): void
     {
         $creator = $this->createMock(ProjectCreator::class);
         $creator->expects($this->once())
@@ -20,7 +21,8 @@ final class NewCommandTest extends TestCase
             ->with(
                 'test-app',
                 '',
-                $this->isInstanceOf(UiChoice::class),
+                UiKit::React,
+                $this->callback(fn (UiChoice $css): bool => $css->value === 'bootstrap'),
                 $this->anything(),
                 true
             )
@@ -31,8 +33,105 @@ final class NewCommandTest extends TestCase
 
         $exitCode = $tester->execute([
             'name' => 'test-app',
-            '--ui' => 'tailwind',
+            '--ui-kit' => 'react',
+            '--css' => 'bootstrap',
         ], ['interactive' => false]);
+
+        self::assertSame(0, $exitCode);
+    }
+
+    public function testNonInteractiveModeRequiresCssFramework(): void
+    {
+        $creator = $this->createMock(ProjectCreator::class);
+        $creator->expects($this->never())->method('create');
+
+        $command = new NewCommand($creator);
+        $tester = new CommandTester($command);
+
+        $exitCode = $tester->execute(['name' => 'test-app'], ['interactive' => false]);
+
+        self::assertSame(1, $exitCode);
+        self::assertStringContainsString('CSS framework is required', $tester->getDisplay());
+    }
+
+    public function testNonInteractiveModeUsesSelectedUiKitAndCss(): void
+    {
+        $creator = $this->createMock(ProjectCreator::class);
+        $creator->expects($this->once())
+            ->method('create')
+            ->with(
+                'test-app',
+                '',
+                UiKit::None,
+                $this->callback(fn (UiChoice $css): bool => $css->value === 'tailwind'),
+                $this->anything(),
+                true
+            )
+            ->willReturn(true);
+
+        $command = new NewCommand($creator);
+        $tester = new CommandTester($command);
+
+        $exitCode = $tester->execute(
+            ['name' => 'test-app', '--css' => 'tailwind'],
+            ['interactive' => false]
+        );
+
+        self::assertSame(0, $exitCode);
+        self::assertStringContainsString('Sahil Engine', $tester->getDisplay());
+    }
+
+    public function testInteractiveModeAsksBothQuestionsInOrder(): void
+    {
+        $creator = $this->createMock(ProjectCreator::class);
+        $creator->expects($this->once())
+            ->method('create')
+            ->with(
+                'test-app',
+                '',
+                UiKit::Vue,
+                $this->callback(fn (UiChoice $css): bool => $css->value === 'tailwind'),
+                $this->anything(),
+                true
+            )
+            ->willReturn(true);
+
+        $command = new NewCommand($creator);
+        $tester = new CommandTester($command);
+        $tester->setInputs(['3', '1']);
+
+        $exitCode = $tester->execute(['name' => 'test-app'], ['interactive' => true]);
+
+        self::assertSame(0, $exitCode);
+        $display = $tester->getDisplay();
+        self::assertStringContainsString('Choose your UI kit:', $display);
+        self::assertStringContainsString('Choose your CSS framework:', $display);
+        self::assertLessThan(
+            strpos($display, 'Choose your CSS framework:'),
+            strpos($display, 'Choose your UI kit:'),
+        );
+    }
+
+    public function testInteractiveModeAcceptsUiKitAndCssNames(): void
+    {
+        $creator = $this->createMock(ProjectCreator::class);
+        $creator->expects($this->once())
+            ->method('create')
+            ->with(
+                'test-app',
+                '',
+                UiKit::Svelte,
+                $this->callback(fn (UiChoice $css): bool => $css->value === 'bootstrap'),
+                $this->anything(),
+                true
+            )
+            ->willReturn(true);
+
+        $command = new NewCommand($creator);
+        $tester = new CommandTester($command);
+        $tester->setInputs(['svelte', 'bootstrap']);
+
+        $exitCode = $tester->execute(['name' => 'test-app'], ['interactive' => true]);
 
         self::assertSame(0, $exitCode);
     }
@@ -47,14 +146,15 @@ final class NewCommandTest extends TestCase
 
         $exitCode = $tester->execute([
             'name' => 'invalid name',
-            '--ui' => 'tailwind',
+            '--ui-kit' => 'none',
+            '--css' => 'tailwind',
         ], ['interactive' => false]);
 
         self::assertSame(1, $exitCode);
         self::assertStringContainsString('Invalid project name', $tester->getDisplay());
     }
 
-    public function testCommandRejectsInvalidUiOption(): void
+    public function testCommandRejectsInvalidUiKitOption(): void
     {
         $creator = $this->createMock(ProjectCreator::class);
         $creator->expects($this->never())->method('create');
@@ -64,14 +164,33 @@ final class NewCommandTest extends TestCase
 
         $exitCode = $tester->execute([
             'name' => 'test-app',
-            '--ui' => 'invalid-ui',
+            '--ui-kit' => 'angular',
+            '--css' => 'tailwind',
         ], ['interactive' => false]);
 
         self::assertSame(1, $exitCode);
-        self::assertStringContainsString('Invalid UI framework', $tester->getDisplay());
+        self::assertStringContainsString('Invalid UI kit', $tester->getDisplay());
     }
 
-    public function testCommandAcceptsTailwindUi(): void
+    public function testCommandRejectsInvalidCssOption(): void
+    {
+        $creator = $this->createMock(ProjectCreator::class);
+        $creator->expects($this->never())->method('create');
+
+        $command = new NewCommand($creator);
+        $tester = new CommandTester($command);
+
+        $exitCode = $tester->execute([
+            'name' => 'test-app',
+            '--ui-kit' => 'none',
+            '--css' => 'bulma',
+        ], ['interactive' => false]);
+
+        self::assertSame(1, $exitCode);
+        self::assertStringContainsString('Invalid CSS framework', $tester->getDisplay());
+    }
+
+    public function testUiOptionIsAliasForUiKit(): void
     {
         $creator = $this->createMock(ProjectCreator::class);
         $creator->expects($this->once())
@@ -79,7 +198,8 @@ final class NewCommandTest extends TestCase
             ->with(
                 'test-app',
                 '',
-                $this->callback(fn ($ui) => $ui->value === 'tailwind'),
+                UiKit::React,
+                $this->callback(fn (UiChoice $css): bool => $css->value === 'bootstrap'),
                 $this->anything(),
                 true
             )
@@ -90,45 +210,42 @@ final class NewCommandTest extends TestCase
 
         $exitCode = $tester->execute([
             'name' => 'test-app',
-            '--ui' => 'tailwind',
+            '--ui' => 'react',
+            '--css' => 'bootstrap',
         ], ['interactive' => false]);
 
         self::assertSame(0, $exitCode);
     }
 
-    public function testCommandAcceptsBootstrapUi(): void
+    public function testUiPackageNameIsRejectedWithGuidance(): void
     {
         $creator = $this->createMock(ProjectCreator::class);
-        $creator->expects($this->once())
-            ->method('create')
-            ->with(
-                'test-app',
-                '',
-                $this->callback(fn ($ui) => $ui->value === 'bootstrap'),
-                $this->anything(),
-                true
-            )
-            ->willReturn(true);
+        $creator->expects($this->never())->method('create');
 
         $command = new NewCommand($creator);
         $tester = new CommandTester($command);
 
         $exitCode = $tester->execute([
-            'name' => 'test-app',
-            '--ui' => 'bootstrap',
+            'name' => 'sahilphp/firefiber',
+            '--ui-kit' => 'firefiber',
+            '--css' => 'tailwind',
         ], ['interactive' => false]);
 
-        self::assertSame(0, $exitCode);
+        self::assertSame(1, $exitCode);
+        $display = $tester->getDisplay();
+        self::assertStringContainsString('"sahilphp/firefiber" looks like a SahilPHP UI package', $display);
+        self::assertStringContainsString('Did you mean: sahilphp new my-app ?', $display);
     }
 
-    public function testCommandSupportsNoDepsOption(): void
+    public function testCommandSupportsNoDepsAndDirectoryOptions(): void
     {
         $creator = $this->createMock(ProjectCreator::class);
         $creator->expects($this->once())
             ->method('create')
             ->with(
                 'test-app',
-                '',
+                '/custom/path',
+                UiKit::None,
                 $this->isInstanceOf(UiChoice::class),
                 $this->anything(),
                 false
@@ -140,34 +257,10 @@ final class NewCommandTest extends TestCase
 
         $exitCode = $tester->execute([
             'name' => 'test-app',
-            '--ui' => 'tailwind',
-            '--no-deps' => true,
-        ], ['interactive' => false]);
-
-        self::assertSame(0, $exitCode);
-    }
-
-    public function testCommandSupportsDirectoryOption(): void
-    {
-        $creator = $this->createMock(ProjectCreator::class);
-        $creator->expects($this->once())
-            ->method('create')
-            ->with(
-                'test-app',
-                '/custom/path',
-                $this->isInstanceOf(UiChoice::class),
-                $this->anything(),
-                true
-            )
-            ->willReturn(true);
-
-        $command = new NewCommand($creator);
-        $tester = new CommandTester($command);
-
-        $exitCode = $tester->execute([
-            'name' => 'test-app',
-            '--ui' => 'tailwind',
+            '--ui-kit' => 'none',
+            '--css' => 'tailwind',
             '--dir' => '/custom/path',
+            '--no-deps' => true,
         ], ['interactive' => false]);
 
         self::assertSame(0, $exitCode);
@@ -185,7 +278,8 @@ final class NewCommandTest extends TestCase
 
         $exitCode = $tester->execute([
             'name' => 'test-app',
-            '--ui' => 'tailwind',
+            '--ui-kit' => 'none',
+            '--css' => 'tailwind',
         ], ['interactive' => false]);
 
         self::assertSame(1, $exitCode);
