@@ -194,7 +194,7 @@ class ProjectCreator
             $process = new Process([
                 'composer',
                 'create-project',
-                'sahilphp/starter-kit',
+                'sahilphp/sahilphp',
                 $directory,
                 '--no-install',
                 '--no-scripts',
