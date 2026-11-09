@@ -275,12 +275,6 @@ class ProjectCreator
             return $localPath;
         }
 
-        // A full starter-kit checkout, when one is present.
-        $starterKitPath = dirname(__DIR__, 3) . '/starter-kit';
-        if ($this->filesystem->exists($starterKitPath . '/composer.json')) {
-            return $starterKitPath;
-        }
-
         // Check vendor (when the installer is installed globally).
         $vendorPath = dirname(__DIR__, 5) . '/vendor/sahilphp/sahilphp';
         if ($this->filesystem->exists($vendorPath . '/composer.json')) {
