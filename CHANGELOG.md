@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- The starter kit applies the choices through `php bin/sahil ui:setup`, which
+- The starter kit applies the choices through `php sahil ui:setup`, which
   copies only the selected stubs and deletes `stubs/` afterwards.
 - All four UI packages (`sahilphp/firefiber`, `sahilphp/react`,
   `sahilphp/vue`, `sahilphp/svelte`) are libraries; `composer create-project`

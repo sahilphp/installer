@@ -18,7 +18,7 @@
     },
     "require": {
         "php": "^8.4",
-        "sahilphp/framework": "^1.0",
+        "sahilphp/framework": "^1.1",
         "symfony/console": "^7.2|^8.0",
         "symfony/process": "^7.2|^8.0",
         "symfony/filesystem": "^7.2|^8.0"
@@ -47,6 +47,19 @@
         "fix-style": "php-cs-fixer fix --config=.php-cs-fixer.dist.php --dry-run --diff",
         "check-style": "php-cs-fixer fix --config=.php-cs-fixer.dist.php --dry-run --diff",
         "check": ["@lint", "@test", "@analyse"]
+    },
+    "archive": {
+        "exclude": [
+            "/.git",
+            "/.github",
+            "/.php-cs-fixer.cache",
+            "/.phpstan-cache",
+            "/.phpunit.cache",
+            "/composer.lock",
+            "/docs",
+            "/tests",
+            "/vendor"
+        ]
     },
     "minimum-stability": "stable",
     "prefer-stable": true,

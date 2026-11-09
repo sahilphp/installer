@@ -50,7 +50,7 @@ view. `ui:setup` copies the chosen kit and CSS trees only, merges their
   dependencies.
 - `.sahil-ui.json` records `{"profile": "<css>", "ui_kit": "<kit>"}`.
 - `stubs/` no longer exists after setup.
-- `php sahil make:auth` and `php sahil migrate` work in the created project.
+- `php sahil unda:auth` and `php sahil migrate` work in the created project.
 
 ## UI packages
 

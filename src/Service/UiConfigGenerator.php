@@ -14,7 +14,7 @@ use SahilPHP\Installer\Ui\UiChoice;
  * Generates a project's Vite configuration from the framework.
  *
  * `Sahil\Ui\ProfilePlan` is the single definition of what a UI profile
- * generates. `bin/sahil ui:install` writes the same files at runtime, so a
+ * generates. `php sahil ui:install` writes the same files at runtime, so a
  * project created by `sahilphp new` and one reconfigured with `ui:install`
  * always end up with the same configuration.
  */

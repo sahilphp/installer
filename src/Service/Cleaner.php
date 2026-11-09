@@ -70,7 +70,7 @@ final class Cleaner
         }
 
         $checks = [
-            is_file($directory.'/bin/sahil'),
+            is_file($directory.'/sahil'),
             is_file($directory.'/composer.json'),
             is_dir($directory.'/resources/views'),
         ];

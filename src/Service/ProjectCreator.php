@@ -150,7 +150,7 @@ class ProjectCreator
     /**
      * Commands a user runs after `sahilphp new`.
      *
-     * The generated project ships `bin/sahil start`, so nobody is told to
+     * The generated project ships `php sahil start`, so nobody is told to
      * assemble a raw `php -S … -t public public/index.php` command by hand.
      *
      * @return list<string>
@@ -169,7 +169,7 @@ class ProjectCreator
             'http://127.0.0.1:8000/ui-kit    component gallery',
             'http://127.0.0.1:8000/health    health check',
             '',
-            'Generate the complete authentication implementation with: php sahil make:auth',
+            'Generate the complete authentication implementation with: php sahil unda:auth',
             'Then open:',
             'http://127.0.0.1:8000/login',
             'http://127.0.0.1:8000/register',
@@ -190,7 +190,7 @@ class ProjectCreator
 
             // Dependencies are installed after the UI profile is applied, so the
             // package's post-create-project-cmd must not run here: it invokes
-            // bin/sahil, which needs vendor/autoload.php.
+            // the CLI, which needs vendor/autoload.php.
             $process = new Process([
                 'composer',
                 'create-project',
@@ -213,17 +213,18 @@ class ProjectCreator
 
             // Remove unnecessary files
             $filesToRemove = [
-
-        // Copy the UI kit and CSS framework stubs from the starter-kit.$this->copyStubs($starterKitPath, $directory);
                 $directory . '/.git',
+                $directory . '/.env',
                 $directory . '/composer.lock',
                 $directory . '/node_modules',
+                $directory . '/vendor',
                 $directory . '/dist',
+                $directory . '/package-lock.json',
+                $directory . '/.phpunit.cache',
             ];
 
             foreach ($filesToRemove as $file) {
 
-        // Copy the UI kit and CSS framework stubs from the starter-kit.$this->copyStubs($starterKitPath, $directory);
                 if ($this->filesystem->exists($file)) {
                     $this->filesystem->remove($file);
                 }
@@ -241,30 +242,26 @@ class ProjectCreator
         // Remove unnecessary files
         $filesToRemove = [
 
-        // Copy the UI kit and CSS framework stubs from the starter-kit.$this->copyStubs($starterKitPath, $directory);
             $directory . '/.git',
+            $directory . '/.env',
             $directory . '/composer.lock',
             $directory . '/node_modules',
+            $directory . '/vendor',
             $directory . '/dist',
+            $directory . '/package-lock.json',
+            $directory . '/.phpunit.cache',
         ];
 
         foreach ($filesToRemove as $file) {
 
-        // Copy the UI kit and CSS framework stubs from the starter-kit.$this->copyStubs($starterKitPath, $directory);
             if ($this->filesystem->exists($file)) {
                 $this->filesystem->remove($file);
             }
         }
+
+        return true;
     }
 
-   private function copyStubs(string $starterKitPath, string $directory): void    {   
-        $stubSource = $starterKitPath . '/stubs';      
-        if ($this->filesystem->exists($stubSource)) {     
-            $stubTarget = $directory . '/stubs';            
-            $this->filesystem->mirror($stubSource, $stubTarget, null, [ override => true, follow_symlinks => true ]); 
-        }         
-    }  
-        
 
     /**
      * Find the starter-kit path.
@@ -272,14 +269,20 @@ class ProjectCreator
      */
     private function findStarterKitPath(): ?string
     {
-        // Check if starter-kit is in the parent directory (local development)
-        $localPath = dirname(__DIR__, 3) . '/starter-kit';
+        // Check the colocated application template (monorepo development).
+        $localPath = dirname(__DIR__, 3) . '/sahilphp';
         if ($this->filesystem->exists($localPath . '/composer.json')) {
             return $localPath;
         }
 
-        // Check if starter-kit is in vendor (when installer is installed globally)
-        $vendorPath = dirname(__DIR__, 5) . '/sahilphp/starter-kit';
+        // A full starter-kit checkout, when one is present.
+        $starterKitPath = dirname(__DIR__, 3) . '/starter-kit';
+        if ($this->filesystem->exists($starterKitPath . '/composer.json')) {
+            return $starterKitPath;
+        }
+
+        // Check vendor (when the installer is installed globally).
+        $vendorPath = dirname(__DIR__, 5) . '/vendor/sahilphp/sahilphp';
         if ($this->filesystem->exists($vendorPath . '/composer.json')) {
             return $vendorPath;
         }
@@ -301,34 +304,45 @@ class ProjectCreator
         UiChoice $css,
         SymfonyStyle $io
     ): bool {
-        if (!$this->filesystem->exists($directory . '/bin/sahil')) {
-            $io->error('bin/sahil is missing from the starter-kit; UI setup cannot run.');
+        $helper = $directory . '/app/Support/UiSetup.php';
+
+        if (!$this->filesystem->exists($helper)) {
+            $io->error('app/Support/UiSetup.php is missing from the starter-kit; UI setup cannot run.');
 
             return false;
         }
 
-        $process = new Process(
-            [
-                PHP_BINARY,
-                'bin/sahil',
-                'ui:setup',
-                '--ui-kit=' . $uiKit->value,
-                '--css=' . $css->value,
-            ],
-            $directory,
-            [
-                'SAHILPHP_UI_KIT' => $uiKit->value,
-                'SAHILPHP_CSS' => $css->value,
-                'SAHILPHP_INSTALLER' => '1',
-            ],
-        );
-        $process->setTimeout(300);
-        $process->run(function ($type, $buffer) use ($io) {
-            $io->write($buffer, false);
-        });
+        // The helper is deliberately dependency-free, so it runs before
+        // `composer install` — the installer must produce a usable project
+        // even with --no-deps.
+        try {
+            require_once $helper;
 
-        if (!$process->isSuccessful()) {
-            $this->reportProcessFailure($io, 'php bin/sahil ui:setup', $process);
+            $class = 'App\\Support\\UiSetup';
+
+            if (!class_exists($class)) {
+                throw new \RuntimeException('the starter-kit UI setup class could not be loaded.');
+            }
+
+            /** @var object $setup */
+            $setup = new $class();
+
+            if (!method_exists($setup, 'run')) {
+                throw new \RuntimeException('the starter-kit UI setup class does not expose run().');
+            }
+
+            $exitCode = (int) $setup->run(
+                ['--ui-kit=' . $uiKit->value, '--css=' . $css->value],
+                $directory,
+            );
+        } catch (\Throwable $failure) {
+            $io->error(sprintf('ui:setup failed: %s', $failure->getMessage()));
+
+            return false;
+        }
+
+        if ($exitCode !== 0) {
+            $io->error(sprintf('ui:setup failed (exit code %d).', $exitCode));
 
             return false;
         }
@@ -494,13 +508,13 @@ class ProjectCreator
         }
 
         if (!$this->filesystem->exists($directory . '/vendor/autoload.php')) {
-            $io->warning('Composer dependencies are not installed; run "composer install", then "php bin/sahil key:generate" and "php bin/sahil storage:prepare".');
+            $io->warning('Composer dependencies are not installed; run "composer install", then "php sahil key:generate" and "php sahil storage:prepare".');
 
             return;
         }
 
-        if (!$this->filesystem->exists($directory . '/bin/sahil')) {
-            $io->warning('bin/sahil is missing; the application key and storage directories were not prepared.');
+        if (!$this->filesystem->exists($directory . '/sahil')) {
+            $io->warning('the root sahil entry point is missing; the application key and storage directories were not prepared.');
 
             return;
         }
@@ -511,7 +525,7 @@ class ProjectCreator
         ];
 
         foreach ($steps as $command => $success) {
-            $process = new Process(['php', 'bin/sahil', $command]);
+            $process = new Process([PHP_BINARY, 'sahil', $command]);
             $process->setWorkingDirectory($directory);
             $process->run();
 
@@ -521,7 +535,7 @@ class ProjectCreator
                 continue;
             }
 
-            $this->reportProcessFailure($io, 'php bin/sahil ' . $command, $process);
+            $this->reportProcessFailure($io, 'php sahil ' . $command, $process);
         }
     }
 

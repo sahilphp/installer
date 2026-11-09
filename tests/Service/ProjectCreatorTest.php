@@ -82,7 +82,7 @@ final class ProjectCreatorTest extends TestCase
         $this->assertStringContainsString('http://127.0.0.1:8000/          welcome page', $tailwind);
         $this->assertStringContainsString('http://127.0.0.1:8000/ui-kit', $tailwind);
         $this->assertStringContainsString('http://127.0.0.1:8000/health', $tailwind);
-        $this->assertStringContainsString('php sahil make:auth', $tailwind);
+        $this->assertStringContainsString('php sahil unda:auth', $tailwind);
         $this->assertStringContainsString('http://127.0.0.1:8000/login', $tailwind);
         $this->assertStringContainsString('http://127.0.0.1:8000/register', $tailwind);
         $this->assertStringContainsString('http://127.0.0.1:8000/dashboard', $tailwind);
