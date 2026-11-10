@@ -18,7 +18,7 @@
     },
     "require": {
         "php": "^8.4",
-        "sahilphp/framework": "^1.1",
+        "sahilphp/framework": "^1.2",
         "symfony/console": "^7.2|^8.0",
         "symfony/process": "^7.2|^8.0",
         "symfony/filesystem": "^7.2|^8.0"
