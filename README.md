@@ -28,7 +28,17 @@ reported as warnings. No credentials or environment secrets are printed.
 
 ### `sahilphp new`
 
-Creates a new SahilPHP project in the current directory.
+Creates a new SahilPHP project in the current directory. The generated
+project exposes the public `sahil` executable at its root; framework command
+and generator implementations stay in the installed `sahilphp/framework`
+package.
+
+```bash
+cd my-app
+php sahil
+php sahil unda:controller UserController
+php sahil migrate
+```
 
 ### `sahilphp list`, `sahilphp --help`
 

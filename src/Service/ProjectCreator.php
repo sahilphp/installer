@@ -169,6 +169,7 @@ class ProjectCreator
             'http://127.0.0.1:8000/ui-kit    component gallery',
             'http://127.0.0.1:8000/health    health check',
             '',
+            'Generate code with: php sahil unda:controller UserController',
             'Generate the complete authentication implementation with: php sahil unda:auth',
             'Then open:',
             'http://127.0.0.1:8000/login',
@@ -219,6 +220,7 @@ class ProjectCreator
                 $directory . '/node_modules',
                 $directory . '/vendor',
                 $directory . '/dist',
+                $directory . '/public/build',
                 $directory . '/package-lock.json',
                 $directory . '/.phpunit.cache',
             ];
@@ -229,6 +231,8 @@ class ProjectCreator
                     $this->filesystem->remove($file);
                 }
             }
+
+            $this->removeRuntimeArtifacts($directory);
 
             return true;
         }
@@ -248,6 +252,7 @@ class ProjectCreator
             $directory . '/node_modules',
             $directory . '/vendor',
             $directory . '/dist',
+            $directory . '/public/build',
             $directory . '/package-lock.json',
             $directory . '/.phpunit.cache',
         ];
@@ -259,9 +264,49 @@ class ProjectCreator
             }
         }
 
+        $this->removeRuntimeArtifacts($directory);
+
         return true;
     }
 
+    /**
+     * Remove runtime artefacts copied from a local starter-kit checkout.
+     *
+     * A developer checkout contains logs, compiled views and sessions that are
+     * git-ignored. Copying them into a new project leaks local paths (for
+     * example old `bin/sahil` error messages) and can even ship stale compiled
+     * templates. Directories themselves and their `.gitkeep` files are kept.
+     */
+    private function removeRuntimeArtifacts(string $directory): void
+    {
+        $patterns = [
+            $directory . '/storage/logs/*.log',
+            $directory . '/storage/framework/views/*.php',
+            $directory . '/storage/framework/sessions/*',
+            $directory . '/storage/framework/cache/*',
+        ];
+
+        foreach ($patterns as $pattern) {
+            foreach (glob($pattern) ?: [] as $path) {
+                if (basename($path) === '.gitkeep') {
+                    continue;
+                }
+
+                $this->filesystem->remove($path);
+            }
+        }
+
+        foreach ([
+            '/storage/framework/vite',
+            '/storage/framework/ui-backups',
+            '/storage/framework/auth-backups',
+            '/storage/framework/unda-backups',
+        ] as $relative) {
+            if ($this->filesystem->exists($directory . $relative)) {
+                $this->filesystem->remove($directory . $relative);
+            }
+        }
+    }
 
     /**
      * Find the starter-kit path.

@@ -1,0 +1,30 @@
+# Public storage is for STATIC assets only.
+#
+# Uploaded files are never executed. This file is defence in depth: the
+# framework already refuses to store executable extensions, and a web server
+# must still never hand a stored file to an interpreter.
+
+Options -ExecCGI -Indexes
+
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+
+RemoveHandler .php .php3 .php4 .php5 .php7 .php8 .phtml .phar
+RemoveType .php .php3 .php4 .php5 .php7 .php8 .phtml .phar
+
+<FilesMatch "\.(php[0-9]?|phtml|phar|cgi|pl|py|rb|sh)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>

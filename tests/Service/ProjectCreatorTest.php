@@ -9,6 +9,8 @@ use SahilPHP\Installer\Service\ProjectCreator;
 use SahilPHP\Installer\Service\ProjectNameValidator;
 use SahilPHP\Installer\Ui\UiChoice;
 use SahilPHP\Installer\Ui\UiKit;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
@@ -91,6 +93,30 @@ final class ProjectCreatorTest extends TestCase
 
         $this->assertStringContainsString('UI kit: Sahil Engine (none)', $bootstrap);
         $this->assertStringContainsString('CSS framework: Bootstrap 5 (bootstrap)', $bootstrap);
+    }
+
+    public function testCreatedProjectUsesThePublicSahilEntryPointAndContainsNoRuntimeArtifacts(): void
+    {
+        $io = new SymfonyStyle(new ArrayInput([]), new NullOutput());
+        $creator = new ProjectCreator();
+
+        $this->assertTrue($creator->create(
+            'runtime-check',
+            $this->tempDir . '/runtime-check',
+            UiKit::None,
+            UiChoice::tailwind(),
+            $io,
+            false,
+        ));
+
+        $root = $this->tempDir . '/runtime-check';
+
+        $this->assertFileExists($root . '/sahil');
+        $this->assertDirectoryDoesNotExist($root . '/bin');
+        $this->assertFileDoesNotExist($root . '/storage/logs/app.log');
+        $this->assertDirectoryDoesNotExist($root . '/public/build');
+        $this->assertSame([], glob($root . '/storage/framework/views/*.php') ?: []);
+        $this->assertSame([], glob($root . '/storage/framework/sessions/*') ?: []);
     }
 
     public function testValidatesProjectNameCorrectly(): void

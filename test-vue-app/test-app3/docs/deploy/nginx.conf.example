@@ -1,0 +1,59 @@
+# SahilPHP starter-kit — Nginx virtual host example.
+#
+# Point the document root at public/ and never at the project root: .env,
+# config/, storage/ and vendor/ live one level above and must not be
+# reachable over HTTP.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name example.com;
+
+    root /var/www/sahil/public;
+    index index.php;
+
+    ssl_certificate     /etc/letsencrypt/live/example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    client_max_body_size 16m;
+
+    # Front controller: everything that is not a real file goes to PHP.
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include        fastcgi_params;
+        fastcgi_param  SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_pass   unix:/run/php/php8.1-fpm.sock;
+        fastcgi_read_timeout 60s;
+    }
+
+    # Dotfiles are never served.
+    location ~ /\. {
+        deny all;
+    }
+
+    # Long-lived caching for built assets, no caching for the front controller.
+    location ~* ^/(build|css|js)/ {
+        expires 30d;
+        access_log off;
+        add_header Cache-Control "public, immutable";
+    }
+
+    error_page 500 502 503 504 /500.html;
+
+    access_log /var/log/nginx/sahil.access.log;
+    error_log  /var/log/nginx/sahil.error.log;
+}

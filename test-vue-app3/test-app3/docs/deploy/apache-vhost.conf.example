@@ -1,0 +1,38 @@
+# SahilPHP starter-kit — Apache virtual host example.
+#
+# Enable: a2enmod rewrite headers php8.1, then restart Apache.
+# The document root is public/, never the project root.
+
+<VirtualHost *:80>
+    ServerName example.com
+    Redirect permanent / https://example.com/
+</VirtualHost>
+
+<VirtualHost *:443>
+    ServerName example.com
+    DocumentRoot /var/www/sahil/public
+
+    SSLEngine on
+    SSLCertificateFile    /etc/letsencrypt/live/example.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/example.com/privkey.pem
+
+    <Directory /var/www/sahil/public>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # Belt and braces: nothing above public/ is reachable even if a vhost is
+    # misconfigured later.
+    <Directory /var/www/sahil>
+        Require all denied
+    </Directory>
+    <Directory /var/www/sahil/public>
+        Require all granted
+    </Directory>
+
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+    ErrorLog  ${APACHE_LOG_DIR}/sahil-error.log
+    CustomLog ${APACHE_LOG_DIR}/sahil-access.log combined
+</VirtualHost>

@@ -1,0 +1,29 @@
+# SahilPHP starter-kit — Apache rules for the public/ document root.
+#
+# The web server MUST point at this directory, never at the project root:
+# .env, config/, storage/, vendor/ and the sources all live one level up.
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Existing files and directories are served as-is (assets in css/, js/,
+    # build/); everything else goes through the front controller.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+# Never serve dotfiles (.env, .git, .htaccess itself).
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Server-level error page used when PHP itself fails (the application renders
+# its own safe errors for handled exceptions).
+ErrorDocument 500 /500.html

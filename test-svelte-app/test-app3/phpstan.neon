@@ -1,0 +1,7 @@
+parameters:
+    paths:
+        - src
+    # Level 6: full call-site and return type checking.
+    # Raise gradually in later phases.
+    phpVersion: 80400
+    level: 8

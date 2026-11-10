@@ -1,0 +1,39 @@
+/*
+ * Page-specific styles for the UI kit examples.
+ *
+ * This file is deliberately outside the Vite build: it demonstrates the
+ * `{{ asset('css/ui-kit.css') }}` helper for plain public files. Any page can
+ * include it through its `head` section.
+ */
+
+.demo-note {
+    border: 1px dashed #cbd5e1;
+    border-radius: 0.75rem;
+    background: #ffffff;
+    color: #475569;
+    padding: 1rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}
+
+.demo-note strong {
+    color: #0f172a;
+}
+
+.demo-note code {
+    border-radius: 0.25rem;
+    background: #f1f5f9;
+    padding: 0.1rem 0.3rem;
+    font-size: 0.8em;
+}
+
+.alert__title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.alert__message {
+    margin: 0.35rem 0 0;
+    font-size: 0.875rem;
+}

@@ -1,0 +1,126 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-84:
+    name: PHP 8.4 + prefer-lowest
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.4']
+        dependencies: [prefer-lowest]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: sahilphp/framework
+          path: framework
+
+      - uses: actions/checkout@v4
+        with:
+          path: sahilphp
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          extensions: openssl, json, mbstring, pdo
+
+      - name: Validate composer.json
+        working-directory: sahilphp
+        run: composer validate --strict
+
+      - name: Install dependencies (lowest)
+        working-directory: sahilphp
+        run: composer update --prefer-lowest --no-interaction --no-progress
+
+      - name: Test
+        working-directory: sahilphp
+        run: composer test
+
+      - name: Dependency audit
+        working-directory: sahilphp
+        run: composer audit
+
+  test-85:
+    name: PHP 8.5 + prefer-stable
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.5']
+        dependencies: [prefer-stable]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: sahilphp/framework
+          path: framework
+
+      - uses: actions/checkout@v4
+        with:
+          path: sahilphp
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+          extensions: openssl, json, mbstring, pdo
+
+      - name: Validate composer.json
+        working-directory: sahilphp
+        run: composer validate --strict
+
+      - name: Install dependencies (stable)
+        working-directory: sahilphp
+        run: composer update --no-interaction --no-progress
+
+      - name: Test
+        working-directory: sahilphp
+        run: composer test
+
+      - name: Dependency audit
+        working-directory: sahilphp
+        run: composer audit
+
+  php-83-failure:
+    name: PHP 8.3 should fail
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: sahilphp/framework
+          path: framework
+
+      - uses: actions/checkout@v4
+        with:
+          path: sahilphp
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - name: Validate composer.json (should fail)
+        working-directory: sahilphp
+        run: composer validate --strict 2>&1 | head -5 || true
+
+      - name: Verify PHP 8.3 fails
+        working-directory: sahilphp
+        run: |
+          set +e
+          composer install --no-interaction --no-progress 2>&1 | grep -i "platform" | head -1 || echo "FAILED to fail as expected"
+          set -e

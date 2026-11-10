@@ -50,7 +50,16 @@ view. `ui:setup` copies the chosen kit and CSS trees only, merges their
   dependencies.
 - `.sahil-ui.json` records `{"profile": "<css>", "ui_kit": "<kit>"}`.
 - `stubs/` no longer exists after setup.
-- `php sahil unda:auth` and `php sahil migrate` work in the created project.
+- The project root contains the executable `sahil`; `php bin/sahil` is not
+  part of the public interface.
+- Framework command and generator implementations live in the installed
+  `sahilphp/framework` package, not in a generated `commands/` directory or
+  the application namespace.
+- `php sahil`, `php sahil about`, `php sahil unda:auth`,
+  `php sahil unda:controller UserController`, and `php sahil migrate` work in
+  the created project.
+- The starter ships the queue/scheduler migrations only; `unda:auth` owns the
+  `users`, `password_reset_tokens`, and `sessions` migrations.
 
 ## UI packages
 

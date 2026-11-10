@@ -1,0 +1,17 @@
+{
+    "name": "sahilphp-app",
+    "private": true,
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "svelte": "^5.46.4"
+    },
+    "devDependencies": {
+        "@sveltejs/vite-plugin-svelte": "^7.3.1",
+        "bootstrap": "^5.3.8",
+        "vite": "^8.3.5"
+    }
+}
